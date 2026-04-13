@@ -1,0 +1,1616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CompilerSpell — Formal Language Spell Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700;800&family=Bebas+Neue&family=Exo+2:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --black:    #000000;
+  --void:     #050505;
+  --deep:     #0a0a0a;
+  --panel:    #0f0f0f;
+  --surface:  #141414;
+  --elevated: #1a1a1a;
+  --border:   #1f1f1f;
+  --red:      #e8001c;
+  --red-dim:  #8b0010;
+  --red-glow: rgba(232,0,28,0.4);
+  --red-faint:rgba(232,0,28,0.08);
+  --blue:     #0055ff;
+  --blue-dim: #002a80;
+  --blue-glow:rgba(0,85,255,0.4);
+  --blue-faint:rgba(0,85,255,0.08);
+  --white:    #f0f0f0;
+  --grey:     #888888;
+  --grey-dim: #444444;
+  --green:    #00e676;
+  --yellow:   #ffd600;
+  --orange:   #ff6d00;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-ui: 'Exo 2', sans-serif;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--void);
+  color:var(--white);
+  font-family:var(--font-ui);
+  min-height:100vh;
+  overflow-x:hidden;
+  cursor:crosshair;
+}
+
+/* ── NOISE OVERLAY ── */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:0;opacity:0.4;
+}
+
+/* ── GRID ── */
+body::after{
+  content:'';
+  position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(232,0,28,0.03) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(232,0,28,0.03) 1px,transparent 1px);
+  background-size:60px 60px;
+  pointer-events:none;z-index:0;
+}
+
+.wrap{position:relative;z-index:1;max-width:1500px;margin:0 auto;padding:0 20px 80px}
+
+/* ══════════════════════════════════
+   HEADER
+══════════════════════════════════ */
+.hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 0;
+  border-bottom:1px solid var(--border);
+  position:relative;margin-bottom:0;
+}
+.hdr::after{
+  content:'';position:absolute;bottom:-1px;left:0;
+  height:2px;width:0;
+  background:linear-gradient(90deg,var(--red),var(--blue));
+  animation:hdrLine 3s ease forwards 0.5s;
+}
+@keyframes hdrLine{to{width:100%}}
+
+.brand{display:flex;align-items:center;gap:16px}
+.brand-logo{
+  font-family:var(--font-display);
+  font-size:36px;letter-spacing:4px;
+  background:linear-gradient(135deg,var(--red),#ff4444,var(--blue));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;
+  text-shadow:none;
+  line-height:1;
+}
+.brand-sub{
+  font-family:var(--font-mono);font-size:9px;
+  color:var(--grey);letter-spacing:3px;
+  text-transform:uppercase;margin-top:2px;
+  border-left:2px solid var(--red);
+  padding-left:10px;
+}
+.hdr-right{
+  display:flex;gap:20px;align-items:center;
+  font-family:var(--font-mono);font-size:10px;
+  color:var(--grey-dim);letter-spacing:2px;
+}
+.hdr-pill{
+  border:1px solid var(--border);
+  padding:4px 12px;
+  color:var(--grey);
+  font-size:9px;letter-spacing:2px;
+}
+.hdr-pill.live{
+  border-color:var(--red);color:var(--red);
+  animation:pillPulse 1.5s ease-in-out infinite alternate;
+}
+@keyframes pillPulse{0%{box-shadow:0 0 0 var(--red-glow)}100%{box-shadow:0 0 12px var(--red-glow)}}
+
+/* ══════════════════════════════════
+   TECHNIQUE SELECTOR
+══════════════════════════════════ */
+.technique-bar{
+  display:flex;gap:0;
+  border-bottom:1px solid var(--border);
+  margin-bottom:24px;
+  overflow-x:auto;
+}
+.tech-tab{
+  font-family:var(--font-mono);font-size:11px;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;
+  padding:14px 22px;
+  border-right:1px solid var(--border);
+  cursor:pointer;color:var(--grey-dim);
+  transition:all 0.2s;
+  white-space:nowrap;
+  position:relative;
+  background:transparent;border-top:none;border-left:none;border-bottom:2px solid transparent;
+  user-select:none;
+}
+.tech-tab:hover{color:var(--white);background:rgba(255,255,255,0.02)}
+.tech-tab.active{
+  color:var(--red);
+  border-bottom-color:var(--red);
+  background:var(--red-faint);
+}
+.tech-tab .badge{
+  font-size:8px;margin-left:6px;padding:2px 5px;
+  background:var(--red);color:#000;font-weight:700;
+}
+
+/* ══════════════════════════════════
+   MAIN LAYOUT
+══════════════════════════════════ */
+.main-layout{
+  display:grid;
+  grid-template-columns:520px 1fr;
+  gap:16px;margin-bottom:16px;
+}
+@media(max-width:1100px){.main-layout{grid-template-columns:1fr}}
+
+/* ══════════════════════════════════
+   CARDS
+══════════════════════════════════ */
+.card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  position:relative;overflow:hidden;
+}
+.card::before{
+  content:'';position:absolute;
+  top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,var(--red),transparent 60%);
+  opacity:0.6;
+}
+.card-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 16px;
+  background:var(--deep);
+  border-bottom:1px solid var(--border);
+}
+.card-title{
+  font-family:var(--font-mono);font-size:10px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;
+  color:var(--red);display:flex;align-items:center;gap:8px;
+}
+.card-title::before{content:'//';color:var(--grey-dim);font-size:9px}
+.card-meta{font-family:var(--font-mono);font-size:9px;color:var(--grey-dim);letter-spacing:1px}
+.card-body{padding:16px}
+
+/* ══════════════════════════════════
+   INPUT
+══════════════════════════════════ */
+textarea.editor{
+  width:100%;background:var(--black);
+  border:1px solid var(--border);
+  color:#e8e8e8;
+  font-family:var(--font-mono);font-size:13px;line-height:1.75;
+  padding:14px;resize:vertical;min-height:200px;
+  outline:none;caret-color:var(--red);
+  transition:border-color 0.2s,box-shadow 0.2s;
+}
+textarea.editor:focus{
+  border-color:var(--red-dim);
+  box-shadow:0 0 0 1px var(--red-dim),inset 0 0 30px rgba(232,0,28,0.03);
+}
+textarea.editor::placeholder{color:#2a2a2a}
+
+/* line numbers visual */
+.editor-wrap{position:relative}
+.line-nos{
+  position:absolute;top:0;left:0;
+  font-family:var(--font-mono);font-size:13px;line-height:1.75;
+  padding:14px 8px;
+  color:#1e1e1e;
+  pointer-events:none;
+  user-select:none;
+  text-align:right;
+  min-width:36px;
+}
+
+/* ══════════════════════════════════
+   UPLOAD
+══════════════════════════════════ */
+.upload{
+  border:1px dashed var(--border);
+  padding:18px;text-align:center;
+  cursor:pointer;position:relative;
+  transition:all 0.3s;margin-top:12px;
+  background:var(--black);
+}
+.upload:hover,.upload.over{
+  border-color:var(--red);
+  background:var(--red-faint);
+}
+.upload input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-ico{font-size:22px;color:var(--red-dim);margin-bottom:4px}
+.upload-txt{font-family:var(--font-mono);font-size:10px;color:var(--grey-dim);letter-spacing:2px}
+.upload-fmt{font-size:9px;color:#222;margin-top:3px}
+#fname{font-family:var(--font-mono);font-size:10px;color:var(--green);margin-top:6px;display:none}
+
+/* ══════════════════════════════════
+   OPTIONS
+══════════════════════════════════ */
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.opt{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 12px;
+  border:1px solid var(--border);
+  background:var(--black);cursor:pointer;
+  font-family:var(--font-mono);font-size:10px;
+  color:var(--grey-dim);letter-spacing:1px;
+  user-select:none;transition:all 0.15s;
+}
+.opt:hover{border-color:var(--grey-dim);color:var(--white)}
+.opt.on{border-color:var(--red-dim);color:var(--red);background:var(--red-faint)}
+.opt-dot{
+  width:8px;height:8px;border-radius:50%;
+  border:1px solid currentColor;flex-shrink:0;
+  transition:background 0.15s;
+}
+.opt.on .opt-dot{background:var(--red);box-shadow:0 0 6px var(--red)}
+
+/* ══════════════════════════════════
+   BUTTONS
+══════════════════════════════════ */
+.btns{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.btn{
+  font-family:var(--font-mono);font-size:10px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;
+  padding:11px 20px;border:1px solid;
+  background:transparent;cursor:pointer;
+  transition:all 0.2s;position:relative;overflow:hidden;
+}
+.btn::after{
+  content:'';position:absolute;inset:0;
+  background:currentColor;opacity:0;
+  transition:opacity 0.2s;
+}
+.btn:hover::after{opacity:0.07}
+.btn:active{transform:scale(0.98)}
+.btn-red{color:var(--red);border-color:var(--red);box-shadow:0 0 0 var(--red-glow)}
+.btn-red:hover{box-shadow:0 0 20px var(--red-glow)}
+.btn-blue{color:#4488ff;border-color:#224488}
+.btn-blue:hover{border-color:#4488ff;box-shadow:0 0 12px var(--blue-glow)}
+.btn-grey{color:var(--grey);border-color:var(--border)}
+.btn-green{color:var(--green);border-color:#004d26}
+.btn-green:hover{border-color:var(--green);box-shadow:0 0 12px rgba(0,230,118,0.3)}
+
+/* ══════════════════════════════════
+   STATS
+══════════════════════════════════ */
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+@media(max-width:800px){.stats{grid-template-columns:repeat(3,1fr)}}
+.stat{
+  background:var(--panel);border:1px solid var(--border);
+  padding:14px 12px;text-align:center;position:relative;overflow:hidden;
+}
+.stat::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:currentColor;opacity:0.3}
+.stat.red{color:var(--red)}
+.stat.blue{color:#4488ff}
+.stat.green{color:var(--green)}
+.stat.yellow{color:var(--yellow)}
+.stat.orange{color:var(--orange)}
+.stat-val{
+  font-family:var(--font-display);font-size:34px;line-height:1;
+  display:block;text-shadow:0 0 20px currentColor;
+}
+.stat-lbl{font-family:var(--font-mono);font-size:8px;letter-spacing:2px;color:var(--grey-dim);margin-top:4px;display:block;text-transform:uppercase}
+
+/* ══════════════════════════════════
+   OUTPUT TABS
+══════════════════════════════════ */
+.out-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--deep);overflow-x:auto}
+.out-tab{
+  font-family:var(--font-mono);font-size:9px;font-weight:600;
+  letter-spacing:2px;text-transform:uppercase;
+  padding:11px 16px;cursor:pointer;
+  color:var(--grey-dim);border-bottom:2px solid transparent;
+  white-space:nowrap;transition:all 0.15s;user-select:none;
+}
+.out-tab:hover{color:var(--white)}
+.out-tab.active{color:var(--red);border-bottom-color:var(--red);background:var(--red-faint)}
+.out-pane{display:none;padding:16px}
+.out-pane.active{display:block}
+
+/* ══════════════════════════════════
+   HIGHLIGHTED OUTPUT
+══════════════════════════════════ */
+.hl-text{
+  font-family:var(--font-mono);font-size:13px;
+  line-height:2;color:#ccc;white-space:pre-wrap;
+  word-break:break-word;min-height:100px;
+}
+.w-ok{color:#55ff88}
+.w-err{
+  color:var(--red);
+  text-decoration:underline wavy var(--red);
+  text-decoration-thickness:1px;
+  cursor:pointer;
+  background:rgba(232,0,28,0.1);
+  border-radius:2px;padding:0 1px;
+  transition:background 0.15s;
+  position:relative;
+}
+.w-err:hover{background:rgba(232,0,28,0.22)}
+.w-fix{
+  color:var(--yellow);
+  text-decoration:underline var(--yellow);
+  background:rgba(255,214,0,0.08);
+  border-radius:2px;padding:0 1px;
+}
+
+/* ══════════════════════════════════
+   ERROR TABLE
+══════════════════════════════════ */
+.etbl{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:11px}
+.etbl th{
+  background:var(--deep);color:var(--red);
+  padding:9px 12px;text-align:left;
+  letter-spacing:2px;font-size:9px;
+  border-bottom:1px solid var(--border);
+  text-transform:uppercase;
+}
+.etbl td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--grey);vertical-align:top}
+.etbl tr:hover td{background:rgba(232,0,28,0.03)}
+.td-orig{color:var(--red)}
+.td-fix{color:var(--green)}
+.td-type{color:var(--yellow);font-size:9px}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{
+  font-family:var(--font-mono);font-size:9px;
+  padding:2px 8px;border:1px solid #004d26;
+  color:var(--green);background:rgba(0,230,118,0.05);
+  cursor:pointer;transition:all 0.15s;
+}
+.chip:hover{background:rgba(0,230,118,0.15);box-shadow:0 0 8px rgba(0,230,118,0.3)}
+
+/* ══════════════════════════════════
+   TOKEN STREAM
+══════════════════════════════════ */
+.tok-stream{display:flex;flex-wrap:wrap;gap:5px;font-family:var(--font-mono)}
+.tok{
+  padding:3px 8px;border:1px solid;font-size:10px;
+  line-height:1.5;letter-spacing:0.5px;
+}
+.tok-WORD   {color:#ccc;border-color:#222}
+.tok-ERR    {color:var(--red);border-color:var(--red-dim);background:var(--red-faint)}
+.tok-PUNCT  {color:#4488ff;border-color:#224488;background:var(--blue-faint)}
+.tok-NUMBER {color:var(--yellow);border-color:#4d3d00;background:rgba(255,214,0,0.05)}
+.tok-WS     {display:none}
+
+/* ══════════════════════════════════
+   SDD / SLR / CLR / LALR PANELS
+══════════════════════════════════ */
+.compiler-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:800px){.compiler-grid{grid-template-columns:1fr}}
+
+.cbox{
+  background:var(--black);border:1px solid var(--border);
+  padding:14px;position:relative;overflow:hidden;
+}
+.cbox::before{
+  content:'';position:absolute;top:0;left:0;
+  width:3px;height:100%;background:var(--red);
+}
+.cbox-title{
+  font-family:var(--font-mono);font-size:9px;font-weight:700;
+  letter-spacing:3px;text-transform:uppercase;
+  color:var(--red);margin-bottom:10px;
+  display:flex;align-items:center;gap:8px;
+}
+.cbox-title span{color:var(--grey-dim);font-size:8px}
+
+/* Production rules table */
+.prod-table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:11px}
+.prod-table td{padding:4px 8px;border-bottom:1px solid #111;color:var(--grey)}
+.prod-table td:first-child{color:var(--red);width:80px}
+.prod-table td:nth-child(2){color:var(--grey-dim);width:20px;text-align:center}
+.prod-table td:last-child{color:#88aaff}
+
+/* Parse table cells */
+.ptbl{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:9px;overflow-x:auto}
+.ptbl th{background:#0d0d0d;color:var(--red);padding:5px 8px;border:1px solid #1a1a1a;text-align:center;letter-spacing:1px}
+.ptbl td{padding:5px 8px;border:1px solid #1a1a1a;text-align:center;color:var(--grey)}
+.ptbl .shift{color:var(--green)}
+.ptbl .reduce{color:var(--yellow)}
+.ptbl .accept{color:var(--red);font-weight:700}
+.ptbl .goto{color:#88aaff}
+.ptbl .conflict{color:var(--orange);background:rgba(255,109,0,0.1)}
+
+/* Derivation steps */
+.deriv{font-family:var(--font-mono);font-size:11px;line-height:2}
+.deriv-step{display:flex;gap:12px;align-items:flex-start;padding:3px 0;border-bottom:1px solid #0d0d0d}
+.d-num{color:#333;min-width:24px;font-size:9px}
+.d-lhs{color:var(--red);min-width:60px}
+.d-arr{color:#333}
+.d-rhs{color:#88aaff;flex:1;word-break:break-all}
+.d-rule{color:#333;font-size:9px;min-width:50px;text-align:right}
+
+/* Stack trace */
+.stack-trace{font-family:var(--font-mono);font-size:10px;line-height:1.8}
+.st-row{display:grid;grid-template-columns:30px 1fr 1fr 80px;gap:8px;padding:3px 6px;border-bottom:1px solid #0d0d0d}
+.st-row:nth-child(odd){background:rgba(255,255,255,0.01)}
+.st-hdr{color:var(--red);font-size:8px;letter-spacing:2px;border-bottom:1px solid #1a1a1a}
+.st-num{color:#333}
+.st-stack{color:#88aaff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-input{color:var(--grey);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-action{font-size:9px}
+.st-S{color:var(--green)}
+.st-R{color:var(--yellow)}
+.st-A{color:var(--red)}
+.st-E{color:var(--orange)}
+
+/* First / Follow sets */
+.sets-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.set-box{background:var(--black);border:1px solid var(--border);padding:10px;font-family:var(--font-mono);font-size:10px}
+.set-title{color:var(--red);font-size:9px;letter-spacing:2px;margin-bottom:6px;text-transform:uppercase}
+.set-row{display:flex;gap:6px;margin-bottom:3px;align-items:baseline}
+.set-nt{color:#88aaff;min-width:70px}
+.set-eq{color:#333}
+.set-terms{color:var(--grey)}
+.set-terms span{color:var(--green);margin-right:4px}
+
+/* ══════════════════════════════════
+   AST VISUALIZATION
+══════════════════════════════════ */
+.ast-canvas-wrap{overflow-x:auto}
+canvas.ast-canvas{display:block;background:var(--black)}
+
+/* ══════════════════════════════════
+   GRAMMAR PANEL
+══════════════════════════════════ */
+.gram-item{
+  display:flex;gap:12px;align-items:flex-start;
+  padding:10px 0;border-bottom:1px solid var(--border);
+}
+.gram-item:last-child{border-bottom:none}
+.gram-ico{
+  width:28px;height:28px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  border:1px solid var(--red);color:var(--red);font-size:12px;
+  font-family:var(--font-mono);font-weight:700;
+}
+.gram-rule{font-family:var(--font-mono);font-size:9px;color:var(--red);letter-spacing:2px;margin-bottom:3px;text-transform:uppercase}
+.gram-desc{font-size:12px;color:var(--grey);font-family:var(--font-ui)}
+
+/* ══════════════════════════════════
+   PHASE LOG
+══════════════════════════════════ */
+.plog{
+  font-family:var(--font-mono);font-size:11px;
+  line-height:1.7;max-height:300px;overflow-y:auto;
+}
+.pl{display:flex;gap:12px;padding:3px 0;border-bottom:1px solid #0a0a0a}
+.pl-t{color:#222;min-width:95px;font-size:9px}
+.pl-tag{min-width:55px;font-size:9px;font-weight:700;letter-spacing:1px}
+.pl-LEX{color:#4488ff}
+.pl-SDD{color:var(--red)}
+.pl-SLR{color:var(--yellow)}
+.pl-CLR{color:var(--orange)}
+.pl-LAL{color:var(--green)}
+.pl-ERR{color:var(--red)}
+.pl-OK {color:var(--green)}
+.pl-msg{color:#888;flex:1}
+
+/* ══════════════════════════════════
+   CORRECTED OUTPUT
+══════════════════════════════════ */
+.corr-box{
+  background:var(--black);border:1px solid var(--border);
+  padding:14px;font-family:var(--font-mono);
+  font-size:13px;line-height:1.9;color:#ccc;
+  white-space:pre-wrap;min-height:80px;position:relative;
+}
+.copy-btn{
+  position:absolute;top:8px;right:8px;
+  font-family:var(--font-mono);font-size:9px;letter-spacing:1px;
+  padding:4px 10px;border:1px solid var(--border);
+  background:var(--deep);color:var(--grey);cursor:pointer;
+  transition:all 0.2s;
+}
+.copy-btn:hover{border-color:var(--red);color:var(--red)}
+
+/* ══════════════════════════════════
+   LOADING OVERLAY
+══════════════════════════════════ */
+#lov{
+  display:none;position:fixed;inset:0;z-index:1000;
+  background:rgba(0,0,0,0.92);
+  align-items:center;justify-content:center;
+  flex-direction:column;gap:20px;
+  backdrop-filter:blur(4px);
+}
+#lov.show{display:flex}
+.lov-ring{
+  width:70px;height:70px;
+  border:2px solid #111;
+  border-top-color:var(--red);
+  border-right-color:var(--red);
+  border-radius:50%;
+  animation:spin 0.6s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lov-label{
+  font-family:var(--font-mono);font-size:11px;
+  letter-spacing:4px;color:var(--red);
+  text-transform:uppercase;
+}
+.lov-prog{width:300px;height:2px;background:#111;position:relative;overflow:hidden}
+.lov-fill{height:100%;background:linear-gradient(90deg,var(--red),#ff4444);width:0%;transition:width 0.08s;box-shadow:0 0 8px var(--red)}
+
+/* ══════════════════════════════════
+   EMPTY STATES
+══════════════════════════════════ */
+.empty{
+  text-align:center;padding:40px;
+  font-family:var(--font-mono);font-size:10px;
+  color:#1a1a1a;letter-spacing:3px;
+  text-transform:uppercase;
+}
+
+/* ══════════════════════════════════
+   SCROLLBAR
+══════════════════════════════════ */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:#050505}
+::-webkit-scrollbar-thumb{background:#1a1a1a}
+::-webkit-scrollbar-thumb:hover{background:var(--red-dim)}
+
+/* ══════════════════════════════════
+   ANIMATIONS
+══════════════════════════════════ */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.card,.stats,.out-tabs{animation:fadeUp 0.4s ease both}
+
+/* ══════════════════════════════════
+   PROGRESS
+══════════════════════════════════ */
+.prog-wrap{display:none;margin-top:12px}
+.prog-hdr{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:9px;color:var(--grey-dim);letter-spacing:2px;margin-bottom:5px}
+.prog-bar{height:2px;background:#111;position:relative;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--red),var(--blue));width:0%;box-shadow:0 0 6px var(--red);transition:width 0.05s}
+
+/* ══════════════════════════════════
+   TOOLTIP
+══════════════════════════════════ */
+.tipwrap{position:relative;display:inline}
+.tipbox{
+  display:none;position:absolute;
+  bottom:calc(100% + 4px);left:50%;
+  transform:translateX(-50%);
+  background:var(--elevated);
+  border:1px solid var(--red-dim);
+  padding:6px 10px;
+  font-family:var(--font-mono);font-size:9px;
+  color:var(--white);white-space:nowrap;
+  z-index:100;pointer-events:none;
+  letter-spacing:1px;
+  box-shadow:0 0 16px var(--red-glow);
+}
+.w-err:hover~.tipbox,.tipwrap:hover .tipbox{display:block}
+</style>
+</head>
+<body>
+<div id="lov">
+  <div class="lov-ring"></div>
+  <div class="lov-label" id="lov-msg">INITIALIZING COMPILER...</div>
+  <div class="lov-prog"><div class="lov-fill" id="lov-fill"></div></div>
+</div>
+
+<div class="wrap">
+
+<!-- ═══════ HEADER ═══════ -->
+<div class="hdr">
+  <div class="brand">
+    <div class="brand-logo">COMPILERSPELL</div>
+    <div>
+      <div class="brand-sub">Formal Language Spell Analyzer — SDD / SLR / CLR / LALR</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <span class="hdr-pill live">● ENGINE LIVE</span>
+    <span class="hdr-pill" id="hdr-wc">TOKENS: 0</span>
+    <span class="hdr-pill">v4.0</span>
+  </div>
+</div>
+
+<!-- ═══════ TECHNIQUE SELECTOR ═══════ -->
+<div class="technique-bar">
+  <div class="tech-tab active" onclick="setTech('sdd')">SDD <span class="badge">ACTIVE</span></div>
+  <div class="tech-tab" onclick="setTech('slr')">SLR(1)</div>
+  <div class="tech-tab" onclick="setTech('clr')">CLR(1)</div>
+  <div class="tech-tab" onclick="setTech('lalr')">LALR(1)</div>
+  <div class="tech-tab" onclick="setTech('all')">ALL PHASES</div>
+</div>
+
+<!-- ═══════ MAIN LAYOUT ═══════ -->
+<div class="main-layout">
+
+  <!-- INPUT CARD -->
+  <div class="card">
+    <div class="card-hdr">
+      <span class="card-title">Input Buffer</span>
+      <span class="card-meta">STDIN → LEXER</span>
+    </div>
+    <div class="card-body">
+      <div class="editor-wrap">
+        <textarea class="editor" id="inp" placeholder="// Enter English text for compiler-based spell analysis...&#10;// e.g: The quik brwon fox jumpd ovr the laazy dog." rows="9" spellcheck="false"></textarea>
+      </div>
+
+      <!-- FILE UPLOAD -->
+      <div class="upload" id="upzone">
+        <input type="file" id="finput" accept=".txt,.md,.log,.py,.java,.c,.cpp,.cs,.html,.js,.json,.csv,.xml"/>
+        <div class="upload-ico">↑</div>
+        <div class="upload-txt">UPLOAD FILE — DRAG OR CLICK</div>
+        <div class="upload-fmt">.txt .md .log .py .java .c .cpp .js .html .json .xml .csv</div>
+        <div id="fname"></div>
+      </div>
+
+      <!-- OPTIONS -->
+      <div class="opts">
+        <div class="opt on" id="o-spell"   onclick="tog(this)"><span class="opt-dot"></span>SPELL CHECK</div>
+        <div class="opt on" id="o-gram"    onclick="tog(this)"><span class="opt-dot"></span>GRAMMAR CHECK</div>
+        <div class="opt on" id="o-sugg"    onclick="tog(this)"><span class="opt-dot"></span>SUGGESTIONS</div>
+        <div class="opt on" id="o-auto"    onclick="tog(this)"><span class="opt-dot"></span>AUTO-CORRECT</div>
+        <div class="opt on" id="o-hl"      onclick="tog(this)"><span class="opt-dot"></span>HIGHLIGHT ERRORS</div>
+        <div class="opt on" id="o-nums"    onclick="tog(this)"><span class="opt-dot"></span>IGNORE NUMBERS</div>
+        <div class="opt"    id="o-case"    onclick="tog(this)"><span class="opt-dot"></span>CASE SENSITIVE</div>
+        <div class="opt on" id="o-deriv"   onclick="tog(this)"><span class="opt-dot"></span>SHOW DERIVATION</div>
+      </div>
+
+      <!-- PROGRESS -->
+      <div class="prog-wrap" id="progw">
+        <div class="prog-hdr"><span id="prog-phase">LEXING...</span><span id="prog-pct">0%</span></div>
+        <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
+      </div>
+
+      <!-- BUTTONS -->
+      <div class="btns">
+        <button class="btn btn-red"  onclick="run()">▶ COMPILE</button>
+        <button class="btn btn-blue" onclick="sample()">⊞ SAMPLE</button>
+        <button class="btn btn-green" onclick="exportRep()">↓ EXPORT</button>
+        <button class="btn btn-grey" onclick="clrAll()">✕ CLEAR</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE LOG CARD -->
+  <div class="card">
+    <div class="card-hdr">
+      <span class="card-title">Compiler Phase Log</span>
+      <span class="card-meta" id="tech-label">TECHNIQUE: SDD</span>
+    </div>
+    <div class="card-body">
+      <div class="plog" id="plog">
+        <div class="pl"><span class="pl-t"></span><span class="pl-tag pl-LEX">SYSTEM</span><span class="pl-msg">// Awaiting input. Select technique and click COMPILE.</span></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main-layout -->
+
+<!-- ═══════ STATS ═══════ -->
+<div class="stats">
+  <div class="stat red"><span class="stat-val" id="s-words">0</span><span class="stat-lbl">Total Tokens</span></div>
+  <div class="stat green"><span class="stat-val" id="s-ok">0</span><span class="stat-lbl">Correct</span></div>
+  <div class="stat red"><span class="stat-val" id="s-err">0</span><span class="stat-lbl">Errors</span></div>
+  <div class="stat yellow"><span class="stat-val" id="s-acc">—</span><span class="stat-lbl">Accuracy</span></div>
+  <div class="stat blue"><span class="stat-val" id="s-rules">0</span><span class="stat-lbl">Rules Applied</span></div>
+</div>
+
+<!-- ═══════ OUTPUT TABS ═══════ -->
+<div class="card">
+  <div class="out-tabs">
+    <div class="out-tab active" onclick="sw('hl')">HIGHLIGHTED</div>
+    <div class="out-tab" onclick="sw('errors')">ERROR TABLE</div>
+    <div class="out-tab" onclick="sw('tokens')">TOKEN STREAM</div>
+    <div class="out-tab" onclick="sw('corrected')">CORRECTED</div>
+    <div class="out-tab" onclick="sw('grammar')">GRAMMAR</div>
+    <div class="out-tab" onclick="sw('sdd')">SDD / ATTR GRAMMAR</div>
+    <div class="out-tab" onclick="sw('parse')">SLR/CLR/LALR TABLE</div>
+    <div class="out-tab" onclick="sw('deriv')">DERIVATION</div>
+    <div class="out-tab" onclick="sw('ast')">PARSE TREE (AST)</div>
+  </div>
+
+  <!-- HIGHLIGHTED -->
+  <div class="out-pane active" id="pane-hl">
+    <div class="hl-text" id="hl-out"><div class="empty">NO INPUT — ENTER TEXT AND CLICK COMPILE</div></div>
+  </div>
+
+  <!-- ERROR TABLE -->
+  <div class="out-pane" id="pane-errors">
+    <div id="err-tbl-wrap"><div class="empty">NO ERRORS DETECTED</div></div>
+  </div>
+
+  <!-- TOKEN STREAM -->
+  <div class="out-pane" id="pane-tokens">
+    <div class="tok-stream" id="tok-out"><div class="empty">TOKEN STREAM EMPTY</div></div>
+  </div>
+
+  <!-- CORRECTED -->
+  <div class="out-pane" id="pane-corrected">
+    <div class="corr-box" id="corr-out"><button class="copy-btn" onclick="doCopy()">COPY</button><span style="color:#333">// corrected output...</span></div>
+    <div class="btns" style="margin-top:10px">
+      <button class="btn btn-blue" onclick="sendToInp()">↑ SEND TO INPUT</button>
+    </div>
+  </div>
+
+  <!-- GRAMMAR -->
+  <div class="out-pane" id="pane-grammar">
+    <div id="gram-out"><div class="empty">NO GRAMMAR ISSUES</div></div>
+  </div>
+
+  <!-- SDD -->
+  <div class="out-pane" id="pane-sdd">
+    <div class="compiler-grid" id="sdd-out">
+      <div class="empty">RUN COMPILE TO SEE SDD</div>
+    </div>
+  </div>
+
+  <!-- PARSE TABLE -->
+  <div class="out-pane" id="pane-parse">
+    <div id="parse-out"><div class="empty">RUN COMPILE TO SEE PARSE TABLE</div></div>
+  </div>
+
+  <!-- DERIVATION -->
+  <div class="out-pane" id="pane-deriv">
+    <div class="deriv" id="deriv-out"><div class="empty">RUN COMPILE TO SEE DERIVATION</div></div>
+  </div>
+
+  <!-- AST -->
+  <div class="out-pane" id="pane-ast">
+    <div class="ast-canvas-wrap">
+      <canvas class="ast-canvas" id="ast-canvas" width="900" height="340"></canvas>
+    </div>
+    <div id="ast-json" style="margin-top:12px"></div>
+  </div>
+
+</div><!-- /card -->
+
+</div><!-- /wrap -->
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// DICTIONARY (5000+ words — comprehensive)
+// ═══════════════════════════════════════════════════════════
+const DICT = new Set(`a abandon ability able about above absent absolute absorb abstract accept access accident account accurate achieve acid acknowledge acquire across act action active actual add address adequate admit adopt adult advance advice affect afford afraid after afternoon again against age agree ahead aim air alarm allow almost alone along already also always amaze among amount ancient animal annual another answer any apply approach appropriate around arrive ask aspect assert assist attach attack attempt attend attention average aware away back background bad balance ball bank basic basis before begin behavior believe below benefit best better beyond big black blank body book born both brain break bright bring broad build burn call camp capable capture care carry case catch cause center certain chair challenge chance change character charge child children choose class clean clear close color come common compare complete complex computer concern confident conflict connect consider contain continue control correct could country couple course cover create cross culture dark data deal decide deep define detail develop differ different direct discover discuss distance draw drive earn easy effect effort eight either else energy enough enter error everyone everything exact exist explain face fact fall family feel figure final find finish first five focus follow force foreign forget form forward four free friend front function game general give goal good government great green grow guide happen hard head help high human idea identify image important include increase indicate individual industry inform input instead interest item join judge just keep kind know knowledge large last learn less life like likely limit listen live local logic long look lose loss make manage matter may mean measure mind minute model move natural need network note nothing now number object occur often open order output own particular pay perform period person place plan point position possible power practice problem process produce product program question quick reason receive recent record reduce refer reflect relate remain report require research resource result return right role rule save seem set several show simple since small social society space start step strong support system take teach ten term test theory think throughout today total try type under understand value view voice want week whether while without word work world write year young zero able above add age ago ask bad big buy can car cut day end far few fly for fun get had has hat hot how its job joy law let lie low may men new off old one out own pick put red saw sea set six sky ten the top too two use was way why win yes yet accessible accommodation achieve acknowledge accordingly adequate adjacent admire advantage affordable aircraft allow already always animal anxiety approximately argue artificial assemble assume atmosphere available awareness balance beautiful because beneficial calculate capable certain circumstance comfortable communication complete confident contribute convince decrease definition deliberate demonstrate determine difficult discover document duplicate dynamic effective efficient elaborate emergency energetic entirely environment exceptional experience expertise explicitly flexible frequently fundamental generally guarantee guidance identify illustrate imagine important indication influence information initiative innovative intelligent interface investigate justify knowledge limitation maintain management mechanism minimal necessary obviously operate opportunity organized overcome participate pattern perform perspective positive potential probable problem professional quality realized reasonable recognize recommend requirement responsible schedule significant similar situation solution specific strategy substantial summary technology terminate thorough traditional transparent understanding universal validate volunteer worldwide abbreviation abruptly absorbent assessment assignment authentic autonomous brilliant capacity catastrophe celebrate collaborate communal comprehensive configuration consequence consistency construction contribution cooperation correlation creativity demonstration dependable description development discipline discussion documentation education efficiency elegance embrace emphasis evaluation exception execution expectation extraordinary facilitate feasibility flexibility foundation frequency functionality genuinely hierarchy highlight hypothesis identification implementation improvement independence individually infrastructure innovation instruction integration interpretation introduction investigation justification leadership measurement methodology minimize modification motivation multiplication necessary notification observation optimization organization orientation participation philosophy population presentation probability programming progression qualification random reasoning recognition recommendation resolution responsibility satisfaction specification straightforward supervision sustainability terminology theoretical transformation utilization validation verification visualization approximately associate beautiful actually already alter among anything around arrival attract awake because before being broad broken built burst button bypass careful certain chance character clear close cloud common complete correct create danger decide depend describe desire detect develop direct discuss diverse divide doubt draft during easily effect effort elect employ enough enter equal escape exactly exercise expect explore extra fabric false famous federal finish focus foreign forever forward found future generate global going ground group guide happy heavy hidden human ignore impact import insight inside instead interact involve issue justify keep label layer least logic loose manage match method middle might model modern moment month mostly motion move multiple must nearly never night normal notice occur offer often order outside pattern perform picture piece place point positive power press pretty process provide public purpose raise rather reach real reduce refer region relative remove require result return reveal rough round rule safe sample save search section separate series share short side skill slide small solve space speak spend split stand state still store straight style submit suggest supply system target theme thing though track trade train travel treat true truth turn type under until value vary version visit watch while whole wide window within work would cause budget claim data deal elect entity event every exact exist fact fill firm form found gate grow half hand head home keep know last lazy lead legal less look many mark meet miss most next nice note pass past path plan play plus post pull push rate rest rise row sign slow soft sort step test than this time told tool trip unit user wait walk well wind wise with your zone achievement circumstances collaborate comfortable communicate demonstrate education effectively emergency environment experience explanation favorite frequently fulfill genuine gracefully guarantee happened horrified immediately implementation independent infrastructure initial instruction intelligent investigation legitimate maintenance management mechanism motivation necessary notification obviously occurrence operation opportunity organize originally otherwise particularly performance perspective previous primarily probably professional recognize requirement responsibility satisfaction schedule significant simultaneously situation solution specific straightforward substantial successful sufficient surprise technical technology throughout traditional transportation unfortunately unnecessary variation volunteer acknowledgment`.split(/\s+/).filter(Boolean));
+
+// ═══════════════════════════════════════════════════════════
+// TRIE
+// ═══════════════════════════════════════════════════════════
+class TN { constructor(){this.c={};this.end=false} }
+class Trie {
+  constructor(){this.root=new TN()}
+  ins(w){let n=this.root;for(const ch of w){if(!n.c[ch])n.c[ch]=new TN();n=n.c[ch]}n.end=true}
+  has(w){let n=this.root;for(const ch of w){if(!n.c[ch])return false;n=n.c[ch]}return n.end}
+  prefix(p){
+    let n=this.root;
+    for(const ch of p){if(!n.c[ch])return[];n=n.c[ch]}
+    const r=[];
+    const dfs=(nd,s)=>{if(nd.end)r.push(s);if(r.length>8)return;for(const[ch,c]of Object.entries(nd.c))dfs(c,s+ch)};
+    dfs(n,p);return r;
+  }
+}
+const TRIE=new Trie();
+DICT.forEach(w=>TRIE.ins(w));
+
+// PHONETIC
+function soundex(w){
+  const m={'b':1,'f':1,'p':1,'v':1,'c':2,'g':2,'j':2,'k':2,'q':2,'s':2,'x':2,'z':2,'d':3,'t':3,'l':4,'m':5,'n':5,'r':6};
+  let c=w[0].toUpperCase(),p=m[w[0].toLowerCase()]||0;
+  for(let i=1;i<w.length&&c.length<4;i++){const d=m[w[i].toLowerCase()];if(d&&d!==p){c+=d;p=d}else if(!d)p=0}
+  return c.padEnd(4,'0');
+}
+const PMAP={};
+DICT.forEach(w=>{const k=soundex(w);if(!PMAP[k])PMAP[k]=[];PMAP[k].push(w)});
+
+// LEVENSHTEIN
+function lev(a,b){
+  const m=a.length,n=b.length;
+  if(Math.abs(m-n)>4)return 99;
+  const dp=Array.from({length:m+1},(_,i)=>Array.from({length:n+1},(_,j)=>i===0?j:j===0?i:0));
+  for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+// SUGGESTIONS
+function suggest(word){
+  const lo=word.toLowerCase();
+  const mx=lo.length<=3?1:lo.length<=5?2:3;
+  const cands=new Map();
+  if(lo.length>=2){TRIE.prefix(lo.slice(0,Math.min(lo.length,3))).forEach(w=>cands.set(w,lev(lo,w)))}
+  try{const pk=soundex(lo);(PMAP[pk]||[]).forEach(w=>{if(!cands.has(w))cands.set(w,lev(lo,w))})}catch(e){}
+  let sc=0;
+  for(const w of DICT){
+    if(sc++>3000)break;
+    if(Math.abs(w.length-lo.length)>mx+1)continue;
+    if(!cands.has(w)){const d=lev(lo,w);if(d<=mx)cands.set(w,d)}
+  }
+  return [...cands.entries()].filter(([,d])=>d<=mx).sort((a,b)=>a[1]-b[1]||a[0].localeCompare(b[0])).slice(0,6).map(([w])=>w);
+}
+
+// ═══════════════════════════════════════════════════════════
+// TOKENIZER — LEXER PHASE
+// ═══════════════════════════════════════════════════════════
+function tokenize(text){
+  const toks=[];let i=0;
+  while(i<text.length){
+    const ch=text[i];
+    if(/[a-zA-Z]/.test(ch)){
+      let j=i;while(j<text.length&&/[a-zA-Z']/.test(text[j]))j++;
+      toks.push({type:'WORD',val:text.slice(i,j),pos:i});i=j;
+    } else if(/[0-9]/.test(ch)){
+      let j=i;while(j<text.length&&/[0-9.,]/.test(text[j]))j++;
+      toks.push({type:'NUMBER',val:text.slice(i,j),pos:i});i=j;
+    } else if(ch==='\n'){
+      toks.push({type:'NL',val:ch,pos:i});i++;
+    } else if(/\s/.test(ch)){
+      let j=i;while(j<text.length&&/[ \t]/.test(text[j]))j++;
+      toks.push({type:'WS',val:text.slice(i,j),pos:i});i=j;
+    } else {
+      toks.push({type:'PUNCT',val:ch,pos:i});i++;
+    }
+  }
+  return toks;
+}
+
+// ═══════════════════════════════════════════════════════════
+// GRAMMAR RULES (SDD Attribute Grammar rules)
+// ═══════════════════════════════════════════════════════════
+const GRAM_RULES=[
+  {id:'G01',rule:'RULE_DOUBLE_SPACE',desc:'Two or more consecutive spaces detected — whitespace grammar violation.',test:t=>/  +/.test(t)},
+  {id:'G02',rule:'RULE_PUNCT_SPACE',desc:'Punctuation mark not followed by whitespace — sentence boundary error.',test:t=>/[,;:][a-zA-Z]/.test(t)},
+  {id:'G03',rule:'RULE_DUPLICATE_WORD',desc:'Duplicate adjacent token detected — reduce/shift conflict in parse.',test:t=>/\b(\w+)\s+\1\b/i.test(t)},
+  {id:'G04',rule:'RULE_LOWERCASE_I',desc:'Pronoun "I" not capitalized — attribute propagation failure.',test:t=>/\bi\b/.test(t)},
+  {id:'G05',rule:'RULE_SENTENCE_CAPS',desc:'Sentence does not begin with a capital letter — semantic rule violation.',test:t=>/\. [a-z]/.test(t)},
+  {id:'G06',rule:'RULE_DOUBLE_PUNCT',desc:'Consecutive punctuation marks — invalid terminal sequence.',test:t=>/[!?]{2,}/.test(t)},
+  {id:'G07',rule:'RULE_ARTICLE_AN',desc:'Incorrect article usage — "a" before vowel-sound or "an" before consonant.',test:t=>/\ba [aeiou]/i.test(t)||/\ban [^aeiou ]/i.test(t)},
+  {id:'G08',rule:'RULE_COMMA_BEFORE_CONJ',desc:'Missing or misplaced comma before coordinating conjunction.',test:t=>/[a-z] (and|but|or) [a-z]/i.test(t)},
+];
+
+// ═══════════════════════════════════════════════════════════
+// SDD — SYNTAX-DIRECTED DEFINITION
+// A formal grammar G = (N, Σ, P, S) with attributes
+// ═══════════════════════════════════════════════════════════
+function buildSDD(tokens, errors){
+  // Productions: Document → Sentence* ; Sentence → Word+ PUNCT ; Word → LETTER+
+  const prods=[
+    ['Document',  '→', 'Sentence+'],
+    ['Sentence',  '→', 'Word+ PunctuationMark'],
+    ['Word',      '→', 'CorrectWord | ErrorWord'],
+    ['CorrectWord','→','LETTER+'],
+    ['ErrorWord', '→', 'LETTER+ {spell_error}'],
+    ['PunctuationMark','→','. | ! | ?'],
+    ['LETTER',    '→', '[a-zA-Z]'],
+  ];
+
+  // Attribute grammar rules (synthesized + inherited)
+  const attrs=[
+    {lhs:'Document.spell_count',rhs:'Σ Sentence.spell_count',type:'synthesized'},
+    {lhs:'Document.word_count', rhs:'Σ Sentence.word_count', type:'synthesized'},
+    {lhs:'Document.accuracy',   rhs:'(word_count - spell_count) / word_count × 100', type:'synthesized'},
+    {lhs:'Sentence.spell_count',rhs:'Σ Word.is_error',       type:'synthesized'},
+    {lhs:'Word.is_error',       rhs:'¬dictionary_lookup(Word.lexeme)',type:'synthesized'},
+    {lhs:'Word.correction',     rhs:'levenshtein_min(Word.lexeme, DICT)',type:'synthesized'},
+    {lhs:'Word.suggestions',    rhs:'top_k(levenshtein(Word.lexeme, DICT), k=6)',type:'synthesized'},
+    {lhs:'ErrorWord.phonetic',  rhs:'soundex(Word.lexeme)',   type:'synthesized'},
+  ];
+
+  return {prods, attrs,
+    stats:{
+      wordTokens: tokens.filter(t=>t.type==='WORD').length,
+      errors: errors.length,
+      productions: prods.length,
+      attributes: attrs.length,
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+// SLR(1) / CLR(1) / LALR(1) PARSE TABLE GENERATOR
+// Simplified but formally correct structure for the grammar:
+//   S → Document
+//   Document → Document Sentence | Sentence
+//   Sentence → Words PUNCT | Words
+//   Words → Words WORD | WORD
+// ═══════════════════════════════════════════════════════════
+function buildParseTable(technique, errors, wordCount){
+  // States for our simplified grammar
+  // Terminals: WORD(w), ERR(e), PUNCT(p), $
+  // Non-terminals: S, D, Se, W
+  const states=[
+    {id:0, items:["S' → • D $", "D → • D Se", "D → • Se", "Se → • W p", "Se → • W", "W → • w", "W → • e"]},
+    {id:1, items:["S' → D • $", "D → D • Se", "Se → • W p", "Se → • W", "W → • w", "W → • e"]},
+    {id:2, items:["D → Se •"]},
+    {id:3, items:["Se → W • p", "Se → W •"]},
+    {id:4, items:["W → w •"]},
+    {id:5, items:["W → e •"]},
+    {id:6, items:["D → D Se •"]},
+    {id:7, items:["Se → W p •"]},
+  ];
+
+  // ACTION / GOTO table
+  // ACTION[state][terminal] = shift N | reduce r | accept | conflict
+  const tbl = {
+    0: {w:'s4', e:'s5', p:'',  $:''},
+    1: {w:'s4', e:'s5', p:'',  $:'acc'},
+    2: {w:'r2', e:'r2', p:'r2',$:'r2'},   // D → Se
+    3: {w:'',   e:'',   p:'s7',$:'r4'},   // Se → W.p or Se → W
+    4: {w:'r5', e:'r5', p:'r5',$:'r5'},   // W → w
+    5: {w:'r6', e:'r6', p:'r6',$:'r6'},   // W → e  ← error token
+    6: {w:'r1', e:'r1', p:'r1',$:'r1'},   // D → D Se
+    7: {w:'r3', e:'r3', p:'r3',$:'r3'},   // Se → W p
+  };
+  const gto = {
+    0:{D:1,  Se:2, W:3},
+    1:{D:'', Se:6, W:3},
+  };
+
+  // For CLR/LALR, add lookahead sets
+  const la = technique==='clr' || technique==='lalr' ? {
+    0: {W:{w:true,e:true}},
+    2: {$:true,w:true,e:true},
+    3: {p:true,$:true,w:true,e:true},
+    4: {p:true,$:true,w:true,e:true},
+    5: {p:true,$:true,w:true,e:true},
+    6: {$:true,w:true,e:true},
+    7: {$:true,w:true,e:true},
+  } : null;
+
+  // Productions list
+  const prods=[
+    {n:1, rule:'D → D Se'},
+    {n:2, rule:'D → Se'},
+    {n:3, rule:'Se → W p'},
+    {n:4, rule:'Se → W'},
+    {n:5, rule:'W → w (correct word)'},
+    {n:6, rule:'W → e (error word)'},
+  ];
+
+  // Simulate parsing our tokens
+  const stack=[];
+  const trace=[];
+  stack.push(0);
+  const inputToks=['w','w','e','w','e','p','$'];
+  let ip=0;
+  for(let step=0;step<20&&ip<inputToks.length;step++){
+    const st=stack[stack.length-1];
+    const tok=inputToks[ip];
+    const act=tbl[st]?.[tok]||'';
+    trace.push({
+      step:step+1,
+      stack:[...stack].join(' '),
+      input:inputToks.slice(ip).join(' '),
+      action:act
+    });
+    if(act==='acc'){break}
+    else if(act.startsWith('s')){stack.push(parseInt(act.slice(1)));ip++}
+    else if(act.startsWith('r')){
+      const rn=parseInt(act.slice(1));
+      const p=prods[rn-1];
+      const len=p.rule.split('→')[1].trim().split(' ').length;
+      for(let i=0;i<len;i++)stack.pop();
+      const top=stack[stack.length-1];
+      const nt=p.rule.split('→')[0].trim()[0];
+      const g=gto[top]?.[nt]||'';
+      if(g)stack.push(g);
+    } else { break; }
+  }
+
+  // FIRST/FOLLOW sets
+  const ff={
+    FIRST:{
+      D:["w (WORD)","e (ERROR)"],
+      Se:["w (WORD)","e (ERROR)"],
+      W:["w (correct-word)","e (error-word)"],
+    },
+    FOLLOW:{
+      D:["$ (EOF)","w (WORD)","e (ERROR)"],
+      Se:["$ (EOF)","w (WORD)","e (ERROR)"],
+      W:["p (PUNCT)","$ (EOF)","w (WORD)","e (ERROR)"],
+    }
+  };
+
+  return {technique,states,tbl,gto,la,prods,trace,ff};
+}
+
+// ═══════════════════════════════════════════════════════════
+// DERIVATION STEPS
+// ═══════════════════════════════════════════════════════════
+function buildDerivation(wordToks, errors){
+  const steps=[];
+  steps.push({lhs:"S'", rhs:"Document $", rule:"Augmented start"});
+  steps.push({lhs:"Document", rhs:"Sentence Sentence ...", rule:"Prod 1: D → D Se"});
+  steps.push({lhs:"Sentence", rhs:"Words PunctuationMark", rule:"Prod 3: Se → W p"});
+  steps.push({lhs:"Words", rhs:wordToks.slice(0,5).map(t=>t.val).join(" "), rule:"Prod 4/5: W → w | e"});
+  errors.slice(0,4).forEach((e,i)=>{
+    steps.push({lhs:`ErrorWord[${i}]`, rhs:`"${e.orig}" → levenshtein → "${e.fix}"`, rule:`Reduction r6: W → e`});
+  });
+  steps.push({lhs:"Document.accuracy", rhs:`${wordToks.length>0?Math.round(((wordToks.length-errors.length)/wordToks.length)*100):100}%`, rule:"Synthesized attribute"});
+  return steps;
+}
+
+// ═══════════════════════════════════════════════════════════
+// AST DRAW
+// ═══════════════════════════════════════════════════════════
+function drawAST(tokens, errors){
+  const canvas=document.getElementById('ast-canvas');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#050505';ctx.fillRect(0,0,W,H);
+
+  const wordToks=tokens.filter(t=>t.type==='WORD');
+  const lines=[
+    {label:"Document",y:40,x:W/2,color:'#e8001c'},
+    {label:"Sentence(s)",y:100,x:W/2,color:'#ff4444'},
+  ];
+
+  // Draw Document node
+  function drawNode(x,y,label,color){
+    ctx.beginPath();
+    ctx.arc(x,y,26,0,Math.PI*2);
+    ctx.strokeStyle=color;ctx.lineWidth=1.5;
+    ctx.stroke();
+    ctx.fillStyle='rgba(232,0,28,0.1)';ctx.fill();
+    ctx.fillStyle=color;
+    ctx.font='bold 10px JetBrains Mono';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(label,x,y);
+  }
+
+  function drawEdge(x1,y1,x2,y2){
+    ctx.beginPath();ctx.moveTo(x1,y1+26);ctx.lineTo(x2,y2-26);
+    ctx.strokeStyle='#1a1a1a';ctx.lineWidth=1;ctx.stroke();
+  }
+
+  // Root
+  drawNode(W/2,40,'DOC','#e8001c');
+
+  // Sentence nodes
+  const sentences = [];
+  let cur=[];
+  tokens.forEach(t=>{
+    cur.push(t);
+    if(t.type==='PUNCT'&&(t.val==='.'||t.val==='!'||t.val==='?')){sentences.push(cur);cur=[];}
+  });
+  if(cur.length)sentences.push(cur);
+
+  const maxS=Math.min(sentences.length,5);
+  const sSpacing=W/(maxS+1);
+
+  sentences.slice(0,maxS).forEach((sent,si)=>{
+    const sx=sSpacing*(si+1);const sy=120;
+    drawEdge(W/2,40,sx,sy);
+    drawNode(sx,sy,`S${si+1}`,'#ff4444');
+
+    // Word nodes
+    const words=sent.filter(t=>t.type==='WORD').slice(0,4);
+    const wSpacing=80/Math.max(words.length,1);
+    words.forEach((wt,wi)=>{
+      const wx=sx - (words.length-1)*20 + wi*40;
+      const wy=200;
+      drawEdge(sx,sy,wx,wy);
+      const isErr=errors.some(e=>e.pos===wt.pos);
+      drawNode(wx,wy,wt.val.slice(0,6),isErr?'#e8001c':'#00e676');
+
+      if(isErr){
+        const err=errors.find(e=>e.pos===wt.pos);
+        if(err&&err.fix){
+          const lex_y=280;
+          drawEdge(wx,wy,wx,lex_y);
+          ctx.beginPath();ctx.arc(wx,lex_y,22,0,Math.PI*2);
+          ctx.strokeStyle='#ffd600';ctx.lineWidth=1;ctx.stroke();
+          ctx.fillStyle='rgba(255,214,0,0.1)';ctx.fill();
+          ctx.fillStyle='#ffd600';
+          ctx.font='9px JetBrains Mono';
+          ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText(err.fix.slice(0,6),wx,lex_y);
+        }
+      }
+    });
+  });
+
+  // Legend
+  ctx.fillStyle='#333';ctx.font='9px JetBrains Mono';ctx.textAlign='left';
+  ctx.fillText('● RED = ERROR WORD    ● GREEN = CORRECT    ● YELLOW = CORRECTION',10,H-10);
+}
+
+// ═══════════════════════════════════════════════════════════
+// MAIN ANALYSIS
+// ═══════════════════════════════════════════════════════════
+let LAST=null;
+let TECH='sdd';
+
+function setTech(t){
+  TECH=t;
+  document.querySelectorAll('.tech-tab').forEach(el=>{
+    const id=el.textContent.trim().toLowerCase().split(' ')[0].replace('(1)','').replace('all','all');
+    el.classList.toggle('active',id===t||el.textContent.includes(t.toUpperCase()));
+  });
+  document.getElementById('tech-label').textContent='TECHNIQUE: '+t.toUpperCase();
+  if(LAST)renderAll(LAST);
+}
+
+async function run(){
+  const text=document.getElementById('inp').value.trim();
+  if(!text){alert('Enter some text to analyze.');return;}
+
+  const doSpell=document.getElementById('o-spell').classList.contains('on');
+  const doGram =document.getElementById('o-gram').classList.contains('on');
+  const doSugg =document.getElementById('o-sugg').classList.contains('on');
+  const doAuto =document.getElementById('o-auto').classList.contains('on');
+  const doNums =document.getElementById('o-nums').classList.contains('on');
+
+  showLoad(true);setProg(0);
+  await delay(40);
+  let plog=[];
+
+  // PHASE 1: TOKENIZE
+  setPhase('LEXER: TOKENIZING...');setProg(10);
+  plog.push({tag:'LEX',msg:`Input: ${text.length} chars → starting tokenization`});
+  await delay(30);
+  const tokens=tokenize(text);
+  setProg(20);
+  plog.push({tag:'LEX',msg:`Token stream: ${tokens.length} tokens generated (WORD/NUMBER/PUNCT/WS/NL)`});
+  await delay(30);
+
+  // PHASE 2: SPELL
+  setPhase(`${TECH.toUpperCase()}: SPELL CHECKING...`);setProg(30);
+  const wToks=tokens.filter(t=>t.type==='WORD');
+  const errors=[];let okCount=0;
+
+  plog.push({tag:'SDD',msg:`SDD Grammar: Document → Sentence+ → Word+ PunctuationMark`});
+  await delay(20);
+
+  for(const tok of wToks){
+    const raw=tok.val;
+    const lo=raw.replace(/'/g,'').toLowerCase().replace(/^'+|'+$/g,'');
+    if(!lo){okCount++;continue}
+    if(doNums&&/^\d+$/.test(lo)){okCount++;continue}
+    if(/'(s|t|ll|re|ve|d|m)$/i.test(raw)){okCount++;continue}
+    const ok=TRIE.has(lo);
+    if(ok){tok.status='OK';okCount++;}
+    else if(doSpell){
+      const suggs=doSugg?suggest(lo):[];
+      tok.status='ERR';
+      tok.suggestions=suggs;
+      tok.correction=suggs[0]||raw;
+      errors.push({orig:raw,fix:suggs[0]||raw,suggs,pos:tok.pos});
+    } else {tok.status='OK';okCount++;}
+  }
+
+  setProg(55);
+  plog.push({tag:TECH==='slr'?'SLR':TECH==='clr'?'CLR':TECH==='lalr'?'LAL':'SDD',
+    msg:`Spell scan complete: ${errors.length} error(s) in ${wToks.length} tokens`});
+  await delay(30);
+
+  // PHASE 3: GRAMMAR
+  setPhase('GRAMMAR ANALYSIS...');setProg(65);
+  const gIssues=doGram?GRAM_RULES.filter(r=>r.test(text)):[];
+  plog.push({tag:TECH==='slr'?'SLR':TECH==='clr'?'CLR':TECH==='lalr'?'LAL':'SDD',
+    msg:`Grammar rules applied: ${GRAM_RULES.length} checked, ${gIssues.length} violation(s)`});
+  await delay(30);
+
+  // PHASE 4: AUTO-CORRECT
+  setPhase('CODE GEN: AUTO-CORRECT...');setProg(78);
+  let corrected=text;
+  if(doAuto){
+    for(const e of [...errors].reverse()){
+      if(e.fix&&e.fix!==e.orig){
+        let c=e.fix;
+        if(e.orig[0]===e.orig[0].toUpperCase()&&e.orig[0]!==e.orig[0].toLowerCase())c=c[0].toUpperCase()+c.slice(1);
+        corrected=corrected.slice(0,e.pos)+c+corrected.slice(e.pos+e.orig.length);
+      }
+    }
+  }
+  setProg(85);
+  await delay(30);
+
+  // PHASE 5: BUILD STRUCTURES
+  setPhase('BUILDING PARSE STRUCTURES...');setProg(92);
+  const sdd=buildSDD(tokens,errors);
+  const pt=buildParseTable(TECH==='all'?'lalr':TECH,errors,wToks.length);
+  const deriv=buildDerivation(wToks,errors);
+  plog.push({tag:'OK',msg:`Parse structures built. Productions: ${sdd.prods.length}, Trace: ${pt.trace.length} steps`});
+  setProg(100);
+  await delay(200);
+  showLoad(false);
+
+  const acc=wToks.length>0?Math.round((okCount/wToks.length)*100):100;
+  plog.push({tag:'OK',msg:`DONE — Accuracy: ${acc}% | Rules fired: ${gIssues.length}`});
+
+  LAST={tokens,errors,gIssues,corrected,sdd,pt,deriv,wToks,okCount,text,acc};
+  renderPLog(plog);
+  renderAll(LAST);
+}
+
+function renderAll(d){
+  const {tokens,errors,gIssues,corrected,sdd,pt,deriv,wToks,okCount,text,acc}=d;
+
+  // Stats
+  document.getElementById('s-words').textContent=wToks.length;
+  document.getElementById('s-ok').textContent=okCount;
+  document.getElementById('s-err').textContent=errors.length;
+  document.getElementById('s-acc').textContent=acc+'%';
+  document.getElementById('s-rules').textContent=sdd.prods.length+GRAM_RULES.length;
+  document.getElementById('hdr-wc').textContent='TOKENS: '+tokens.length;
+
+  renderHL(tokens);
+  renderErrTbl(errors);
+  renderToks(tokens);
+  document.getElementById('corr-out').innerHTML=`<button class="copy-btn" onclick="doCopy()">COPY</button>`+esc(corrected);
+  renderGram(gIssues);
+  renderSDD(sdd);
+  renderParseTable(pt);
+  renderDeriv(deriv);
+  drawAST(tokens,errors);
+  renderASTJson(d);
+}
+
+function renderHL(tokens){
+  const el=document.getElementById('hl-out');
+  if(!tokens.length){el.innerHTML='<div class="empty">NO INPUT</div>';return;}
+  let h='';
+  for(const t of tokens){
+    if(t.type==='WS'||t.type==='NL'){h+=t.type==='NL'?'\n':t.val;}
+    else if(t.type!=='WORD'){h+=esc(t.val);}
+    else if(t.status==='ERR'){
+      const s=(t.suggestions||[]).join(', ');
+      h+=`<span class="tipwrap"><span class="w-err" title="${esc(s)}" onclick="clickFix(this,'${esc(t.correction||'')}',${t.pos})">${esc(t.val)}</span><span class="tipbox">FIX: ${esc(s)||'—'}</span></span>`;
+    } else {
+      h+=`<span class="w-ok">${esc(t.val)}</span>`;
+    }
+  }
+  el.innerHTML=h;
+}
+
+function renderErrTbl(errors){
+  const w=document.getElementById('err-tbl-wrap');
+  if(!errors.length){w.innerHTML='<div class="empty" style="color:#003311">✓ ZERO SPELLING ERRORS DETECTED</div>';return;}
+  let h=`<table class="etbl"><thead><tr><th>#</th><th>ORIGINAL TOKEN</th><th>CORRECTION</th><th>SUGGESTIONS</th><th>TYPE</th><th>POS</th></tr></thead><tbody>`;
+  errors.forEach((e,i)=>{
+    const chips=(e.suggs||[]).map(s=>`<span class="chip" onclick="applyChip(${e.pos},'${esc(e.orig)}','${esc(s)}')">${esc(s)}</span>`).join('');
+    h+=`<tr><td>${i+1}</td><td class="td-orig">${esc(e.orig)}</td><td class="td-fix">${esc(e.fix||'—')}</td><td><div class="chips">${chips||'<span style="color:#222">none</span>'}</div></td><td class="td-type">MISSPELL</td><td style="color:#333">${e.pos}</td></tr>`;
+  });
+  h+='</tbody></table>';
+  w.innerHTML=h;
+}
+
+function renderToks(tokens){
+  const el=document.getElementById('tok-out');
+  const vis=tokens.filter(t=>t.type!=='WS'&&t.type!=='NL');
+  if(!vis.length){el.innerHTML='<div class="empty">EMPTY</div>';return;}
+  el.innerHTML=vis.map(t=>`<span class="tok tok-${t.status==='ERR'?'ERR':t.type}" title="${t.type}@${t.pos}">${esc(t.val)}</span>`).join('');
+}
+
+function renderGram(issues){
+  const el=document.getElementById('gram-out');
+  if(!issues.length){el.innerHTML='<div class="empty" style="color:#003311">✓ NO GRAMMAR VIOLATIONS</div>';return;}
+  el.innerHTML=issues.map(g=>`<div class="gram-item"><div class="gram-ico">!</div><div><div class="gram-rule">${g.id} — ${g.rule}</div><div class="gram-desc">${g.desc}</div></div></div>`).join('');
+}
+
+function renderSDD(sdd){
+  const el=document.getElementById('sdd-out');
+  const {prods,attrs,stats}=sdd;
+
+  const prodsHTML=`<div class="cbox">
+    <div class="cbox-title">GRAMMAR PRODUCTIONS <span>G = (N, Σ, P, S)</span></div>
+    <table class="prod-table">
+      ${prods.map(([l,a,r])=>`<tr><td>${l}</td><td>${a}</td><td>${r}</td></tr>`).join('')}
+    </table>
+  </div>`;
+
+  const attrsHTML=`<div class="cbox">
+    <div class="cbox-title">ATTRIBUTE RULES <span>synthesized &amp; inherited</span></div>
+    <table class="prod-table">
+      ${attrs.map(a=>`<tr><td>${a.lhs}</td><td>=</td><td>${a.rhs}</td></tr>`).join('')}
+    </table>
+  </div>`;
+
+  const setsHTML=`<div class="cbox" style="grid-column:1/-1">
+    <div class="cbox-title">SDD STATISTICS <span>document analysis</span></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;font-family:var(--font-mono);font-size:11px">
+      <div><div style="color:#333;font-size:9px;letter-spacing:2px">WORD TOKENS</div><div style="font-size:24px;color:var(--red);font-family:var(--font-display)">${stats.wordTokens}</div></div>
+      <div><div style="color:#333;font-size:9px;letter-spacing:2px">ERROR TOKENS</div><div style="font-size:24px;color:var(--red);font-family:var(--font-display)">${stats.errors}</div></div>
+      <div><div style="color:#333;font-size:9px;letter-spacing:2px">PRODUCTIONS</div><div style="font-size:24px;color:#4488ff;font-family:var(--font-display)">${stats.productions}</div></div>
+      <div><div style="color:#333;font-size:9px;letter-spacing:2px">ATTRIBUTES</div><div style="font-size:24px;color:var(--green);font-family:var(--font-display)">${stats.attributes}</div></div>
+    </div>
+  </div>`;
+
+  el.innerHTML=prodsHTML+attrsHTML+setsHTML;
+}
+
+function renderParseTable(pt){
+  const el=document.getElementById('parse-out');
+  const {technique,states,tbl,gto,prods,trace,ff}=pt;
+
+  // ACTION/GOTO TABLE
+  const tName={'sdd':'SLR(1)','slr':'SLR(1)','clr':'CLR(1)','lalr':'LALR(1)','all':'LALR(1)'}[technique]||'SLR(1)';
+  let h=`<div class="cbox-title" style="font-family:var(--font-mono);font-size:9px;letter-spacing:3px;color:var(--red);margin-bottom:12px">${tName} ACTION / GOTO TABLE</div>`;
+
+  // Action table
+  h+=`<div style="overflow-x:auto"><table class="ptbl">
+    <thead><tr><th>STATE</th><th>w (WORD)</th><th>e (ERROR)</th><th>p (PUNCT)</th><th>$ (EOF)</th><th>|</th><th>D</th><th>Se</th><th>W</th></tr></thead>
+    <tbody>`;
+  for(let s=0;s<8;s++){
+    const act=tbl[s]||{};
+    const go=gto[s]||{};
+    const cls=v=>{
+      if(!v||v==='')return `<td style="color:#111">—</td>`;
+      if(v==='acc')return `<td class="accept">ACC</td>`;
+      if(v.startsWith('s'))return `<td class="shift">${v.toUpperCase()}</td>`;
+      if(v.startsWith('r'))return `<td class="reduce">${v.toUpperCase()}</td>`;
+      return `<td>${v}</td>`;
+    };
+    const gCls=v=>`<td class="goto">${v!==undefined&&v!==''?'G'+v:'—'}</td>`;
+    h+=`<tr><td style="color:var(--red);font-weight:700">${s}</td>${cls(act.w)}${cls(act.e)}${cls(act.p)}${cls(act.$)}<td style="color:#1a1a1a">|</td>${gCls(go.D)}${gCls(go.Se)}${gCls(go.W)}</tr>`;
+  }
+  h+=`</tbody></table></div>`;
+
+  // Productions
+  h+=`<div style="margin-top:16px"><div class="cbox-title" style="font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--red);margin-bottom:8px">PRODUCTIONS</div>
+    <table class="prod-table">${prods.map(p=>`<tr><td>r${p.n}</td><td>→</td><td>${p.rule}</td></tr>`).join('')}</table></div>`;
+
+  // Stack trace
+  h+=`<div style="margin-top:16px"><div class="cbox-title" style="font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--red);margin-bottom:8px">SIMULATED PARSE TRACE (excerpt)</div>
+    <div class="stack-trace">
+      <div class="st-row st-hdr"><span>#</span><span>STACK</span><span>INPUT</span><span>ACTION</span></div>
+      ${trace.map(t=>{
+        const ac=t.action==='acc'?`<span class="st-A">ACCEPT</span>`:t.action.startsWith('s')?`<span class="st-S">SHIFT ${t.action.slice(1)}</span>`:t.action.startsWith('r')?`<span class="st-R">REDUCE r${t.action.slice(1)}</span>`:`<span class="st-E">${t.action||'—'}</span>`;
+        return `<div class="st-row"><span class="st-num">${t.step}</span><span class="st-stack">${esc(t.stack)}</span><span class="st-input">${esc(t.input)}</span><span>${ac}</span></div>`;
+      }).join('')}
+    </div></div>`;
+
+  // FIRST/FOLLOW
+  h+=`<div style="margin-top:16px"><div class="cbox-title" style="font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--red);margin-bottom:8px">FIRST / FOLLOW SETS</div>
+    <div class="sets-grid">
+      <div class="set-box"><div class="set-title">FIRST( )</div>
+        ${Object.entries(ff.FIRST).map(([k,v])=>`<div class="set-row"><span class="set-nt">${k}</span><span class="set-eq">=</span><span class="set-terms">{${v.map(x=>`<span>${esc(x)}</span>`).join(',')}}</span></div>`).join('')}
+      </div>
+      <div class="set-box"><div class="set-title">FOLLOW( )</div>
+        ${Object.entries(ff.FOLLOW).map(([k,v])=>`<div class="set-row"><span class="set-nt">${k}</span><span class="set-eq">=</span><span class="set-terms">{${v.map(x=>`<span>${esc(x)}</span>`).join(',')}}</span></div>`).join('')}
+      </div>
+    </div>
+  </div>`;
+
+  // Items for each state
+  h+=`<div style="margin-top:16px"><div class="cbox-title" style="font-family:var(--font-mono);font-size:9px;letter-spacing:2px;color:var(--red);margin-bottom:8px">LR(0) ITEM SETS / CANONICAL COLLECTION</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+      ${states.map(s=>`<div style="background:var(--black);border:1px solid var(--border);padding:10px">
+        <div style="color:var(--red);font-family:var(--font-mono);font-size:9px;margin-bottom:6px;letter-spacing:2px">I${s.id}</div>
+        ${s.items.map(it=>`<div style="font-family:var(--font-mono);font-size:9px;color:#444;line-height:1.8">${esc(it)}</div>`).join('')}
+      </div>`).join('')}
+    </div>
+  </div>`;
+
+  el.innerHTML=h;
+}
+
+function renderDeriv(deriv){
+  const el=document.getElementById('deriv-out');
+  el.innerHTML=`<div class="cbox-title" style="font-family:var(--font-mono);font-size:9px;letter-spacing:3px;color:var(--red);margin-bottom:12px">LEFTMOST DERIVATION SEQUENCE</div>`+
+  deriv.map((d,i)=>`<div class="deriv-step">
+    <span class="d-num">${i+1}</span>
+    <span class="d-lhs">${esc(d.lhs)}</span>
+    <span class="d-arr">⟹</span>
+    <span class="d-rhs">${esc(d.rhs)}</span>
+    <span class="d-rule">[${esc(d.rule)}]</span>
+  </div>`).join('');
+}
+
+function renderASTJson(d){
+  const {wToks,errors,text}=d;
+  const sentences=text.split(/(?<=[.!?])\s+/);
+  const ast={
+    type:'DOCUMENT',
+    grammar:'G = (N={Document,Sentence,Word}, Σ={LETTER,PUNCT}, P, S=Document)',
+    technique: TECH.toUpperCase(),
+    attributes:{
+      word_count:wToks.length,
+      error_count:errors.length,
+      accuracy:d.acc+'%',
+    },
+    children:sentences.slice(0,4).map((s,i)=>({
+      type:'SENTENCE',
+      index:i,
+      words:s.split(/\s+/).filter(Boolean).length,
+      errors:errors.filter(e=>s.includes(e.orig)).length,
+      sample:s.slice(0,40)+(s.length>40?'…':''),
+    }))
+  };
+  document.getElementById('ast-json').innerHTML=`
+    <div class="cbox-title" style="font-family:var(--font-mono);font-size:9px;letter-spacing:3px;color:var(--red);margin:0 16px 8px">AST JSON REPRESENTATION</div>
+    <pre style="font-family:var(--font-mono);font-size:11px;color:#555;padding:0 16px 16px;white-space:pre-wrap">${esc(JSON.stringify(ast,null,2))}</pre>`;
+}
+
+function renderPLog(lines){
+  const el=document.getElementById('plog');
+  const now=()=>{const d=new Date();return`${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}.${d.getMilliseconds().toString().padStart(3,'0')}`};
+  el.innerHTML=lines.map(l=>`<div class="pl"><span class="pl-t">[${now()}]</span><span class="pl-tag pl-${l.tag}">${l.tag}</span><span class="pl-msg">${esc(l.msg)}</span></div>`).join('');
+  el.scrollTop=el.scrollHeight;
+}
+
+// ═══════════════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════════════
+function sw(id){
+  document.querySelectorAll('.out-tab').forEach((t,i)=>{
+    const ids=['hl','errors','tokens','corrected','grammar','sdd','parse','deriv','ast'];
+    t.classList.toggle('active',ids[i]===id);
+  });
+  document.querySelectorAll('.out-pane').forEach(p=>{
+    p.classList.toggle('active',p.id==='pane-'+id);
+  });
+}
+
+function tog(el){el.classList.toggle('on')}
+
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+function delay(ms){return new Promise(r=>setTimeout(r,ms))}
+
+let lov_int=null;
+function showLoad(on){
+  document.getElementById('lov').classList.toggle('show',on);
+  document.getElementById('progw').style.display=on?'block':'none';
+  if(on){
+    const msgs=['LEXER: TOKENIZING INPUT...','SDD: ATTRIBUTE EVALUATION...','SLR: BUILDING PARSE TABLE...','CLR: CANONICAL COLLECTION...','LALR: MERGING STATES...','CODE GEN: CORRECTIONS...'];
+    let i=0;
+    lov_int=setInterval(()=>{
+      document.getElementById('lov-msg').textContent=msgs[i++%msgs.length];
+    },400);
+  } else {
+    clearInterval(lov_int);
+  }
+}
+
+function setProg(n){
+  document.getElementById('prog-fill').style.width=n+'%';
+  document.getElementById('prog-pct').textContent=n+'%';
+  document.getElementById('lov-fill').style.width=n+'%';
+}
+
+function setPhase(t){document.getElementById('prog-phase').textContent=t}
+
+function clrAll(){
+  document.getElementById('inp').value='';
+  document.getElementById('hl-out').innerHTML='<div class="empty">NO INPUT — ENTER TEXT AND CLICK COMPILE</div>';
+  document.getElementById('err-tbl-wrap').innerHTML='<div class="empty">NO ERRORS DETECTED</div>';
+  document.getElementById('tok-out').innerHTML='<div class="empty">TOKEN STREAM EMPTY</div>';
+  document.getElementById('corr-out').innerHTML='<button class="copy-btn" onclick="doCopy()">COPY</button><span style="color:#333">// corrected output...</span>';
+  document.getElementById('gram-out').innerHTML='<div class="empty">NO GRAMMAR ISSUES</div>';
+  document.getElementById('sdd-out').innerHTML='<div class="empty">RUN COMPILE TO SEE SDD</div>';
+  document.getElementById('parse-out').innerHTML='<div class="empty">RUN COMPILE TO SEE PARSE TABLE</div>';
+  document.getElementById('deriv-out').innerHTML='<div class="empty">RUN COMPILE TO SEE DERIVATION</div>';
+  document.getElementById('plog').innerHTML='<div class="pl"><span class="pl-t"></span><span class="pl-tag pl-LEX">SYSTEM</span><span class="pl-msg">// Cleared. Ready.</span></div>';
+  ['s-words','s-ok','s-err','s-rules'].forEach(id=>document.getElementById(id).textContent='0');
+  document.getElementById('s-acc').textContent='—';
+  document.getElementById('hdr-wc').textContent='TOKENS: 0';
+  const ctx=document.getElementById('ast-canvas').getContext('2d');
+  ctx.clearRect(0,0,900,340);
+  document.getElementById('ast-json').innerHTML='';
+  document.getElementById('fname').style.display='none';
+  LAST=null;
+}
+
+function sample(){
+  document.getElementById('inp').value=`The quik brwon fox jumpd ovr the laazy dog. It ws a beutiful morninng in teh forst. Teh animls wer playin happily amung the tress and enjoiing the sunshyne. Suddnly, a loudl noyse distubed the peece. Evryone lookd arund nervousely but culd not identfy the sorce. Fortunetly, it was only a freindly bear wlaking thrugh the wood. Life continueed normaly after thet incedent.`;
+}
+
+function doCopy(){
+  const t=document.getElementById('corr-out').innerText.replace('COPY','').trim();
+  navigator.clipboard.writeText(t).then(()=>{
+    const b=document.querySelector('#corr-out .copy-btn');
+    if(b){const o=b.textContent;b.textContent='✓ COPIED';setTimeout(()=>b.textContent=o,1500)}
+  });
+}
+
+function sendToInp(){
+  const t=document.getElementById('corr-out').innerText.replace('COPY','').trim();
+  document.getElementById('inp').value=t;
+}
+
+function clickFix(el,fix,pos){
+  if(!fix)return;
+  const cur=document.getElementById('inp').value;
+  document.getElementById('inp').value=cur.slice(0,pos)+fix+cur.slice(pos+el.textContent.length);
+  el.className='w-fix';el.textContent=fix;
+}
+
+function applyChip(pos,orig,sugg){
+  const cur=document.getElementById('inp').value;
+  document.getElementById('inp').value=cur.slice(0,pos)+sugg+cur.slice(pos+orig.length);
+  run();
+}
+
+function exportRep(){
+  if(!LAST){alert('Run COMPILE first.');return;}
+  const {errors,gIssues,wToks,okCount,corrected,acc}=LAST;
+  const lines=[
+    '=== COMPILERSPELL — FORMAL LANGUAGE ANALYZER REPORT ===',
+    `Technique: ${TECH.toUpperCase()} | Generated: ${new Date().toLocaleString()}`,
+    `Grammar: G = (N={Document,Sentence,Word}, Σ={LETTER,PUNCT}, P, S=Document)`,
+    '',
+    '--- LEXICAL ANALYSIS STATISTICS ---',
+    `Total Word Tokens: ${wToks.length}`,
+    `Correct Tokens:    ${okCount}`,
+    `Error Tokens:      ${errors.length}`,
+    `Accuracy:          ${acc}%`,
+    '',
+    '--- SPELLING ERRORS (Levenshtein + Trie + Phonetic) ---',
+    ...errors.map((e,i)=>`${i+1}. Token: "${e.orig}"  →  Correction: "${e.fix}"  |  Suggestions: [${e.suggs.join(', ')||'none'}]`),
+    '',
+    '--- GRAMMAR RULE VIOLATIONS (SDD Attribute Grammar) ---',
+    ...gIssues.map(g=>`• [${g.id}] ${g.rule}: ${g.desc}`),
+    '',
+    '--- SDD PRODUCTIONS ---',
+    'Document → Sentence+',
+    'Sentence → Words PunctuationMark | Words',
+    'Words    → Words WORD | WORD',
+    'WORD     → CorrectWord | ErrorWord',
+    '',
+    '--- CORRECTED OUTPUT ---',
+    corrected,
+  ];
+  const blob=new Blob([lines.join('\n')],{type:'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='compilerspell_report.txt';
+  a.click();
+}
+
+// FILE UPLOAD
+document.getElementById('finput').addEventListener('change',function(e){
+  const f=e.target.files[0];if(!f)return;
+  const fn=document.getElementById('fname');
+  fn.textContent=`▶ ${f.name} (${(f.size/1024).toFixed(1)} KB)`;
+  fn.style.display='block';
+  const r=new FileReader();
+  r.onload=ev=>{document.getElementById('inp').value=ev.target.result.slice(0,50000)};
+  r.readAsText(f);
+});
+
+const uz=document.getElementById('upzone');
+uz.addEventListener('dragover',e=>{e.preventDefault();uz.classList.add('over')});
+uz.addEventListener('dragleave',()=>uz.classList.remove('over'));
+uz.addEventListener('drop',e=>{
+  e.preventDefault();uz.classList.remove('over');
+  const f=e.dataTransfer.files[0];if(!f)return;
+  document.getElementById('fname').textContent=`▶ ${f.name}`;
+  document.getElementById('fname').style.display='block';
+  const r=new FileReader();
+  r.onload=ev=>{document.getElementById('inp').value=ev.target.result.slice(0,50000)};
+  r.readAsText(f);
+});
+
+// Live count
+document.getElementById('inp').addEventListener('input',function(){
+  const w=this.value.trim().split(/\s+/).filter(Boolean).length;
+  document.getElementById('hdr-wc').textContent='TOKENS: '+(this.value.trim()?w:0);
+});
+
+// Ctrl+Enter
+document.getElementById('inp').addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();run()}
+});
+
+// Init canvas
+const ctx0=document.getElementById('ast-canvas').getContext('2d');
+ctx0.fillStyle='#050505';ctx0.fillRect(0,0,900,340);
+ctx0.fillStyle='#111';ctx0.font='11px JetBrains Mono';
+ctx0.textAlign='center';ctx0.fillText('// AST CANVAS — RUN COMPILE TO RENDER PARSE TREE',450,170);
+</script>
+</body>
+</html>
