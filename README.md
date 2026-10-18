@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/banner(2).svg" alt="CompilerSpell banner(2)" width="100%"/>
+<img src="assets/banner (2).svg" alt="CompilerSpell banner (2)" width="100%"/>
 
 <br/>
 
@@ -12,7 +12,7 @@
 
 **A browser-based spell and grammar analyzer that treats English as a formal language and checks it with real compiler phases.**
 
-[Overview](#-overview) · [Features](#-features) · [Pipeline](#-compiler-pipeline) · [Run](#-how-to-run) · [Algorithms](#-algorithms) · [Concepts](#-academic-concepts)
+[Overview](#-overview) · [Features](#-features) · [pipeline (1)](#-compiler-pipeline (1)) · [Run](#-how-to-run) · [Algorithms](#-algorithms) · [Concepts](#-academic-concepts)
 
 </div>
 
@@ -36,10 +36,10 @@ Instead of a plain dictionary lookup, it models English text as a **formal gramm
 
 ---
 
-## 🔄 Compiler Pipeline
+## 🔄 Compiler pipeline (1)
 
 <div align="center">
-<img src="assets/pipeline.svg" alt="Animated pipeline: Lexer, SDD, LR Parser, Auto-Correct, AST" width="100%"/>
+<img src="assets/pipeline (1).svg" alt="Animated pipeline (1): Lexer, SDD, LR Parser, Auto-Correct, AST" width="100%"/>
 </div>
 
 ```mermaid
@@ -191,8 +191,8 @@ compilerspell/
 ├── README.md
 └── assets/
     ├── logo.svg
-    ├── banner(2).svg
-    └── pipeline.svg
+    ├── banner (2).svg
+    └── pipeline (1).svg
 ```
 
 ---
