@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/banner.svg" alt="CompilerSpell banner" width="100%"/>
+<img src="assets/banner(2).svg" alt="CompilerSpell banner(2)" width="100%"/>
 
 <br/>
 
@@ -191,7 +191,7 @@ compilerspell/
 ├── README.md
 └── assets/
     ├── logo.svg
-    ├── banner.svg
+    ├── banner(2).svg
     └── pipeline.svg
 ```
 
