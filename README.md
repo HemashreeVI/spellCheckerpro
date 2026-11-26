@@ -12,7 +12,7 @@
 
 **A browser-based spell and grammar analyzer that treats English as a formal language and checks it with real compiler phases.**
 
-<p align="center"><a href="https://hemashreevi.github.io/spellcheckerpro/"><img src="https://img.shields.io/badge/%E2%96%B6_Try_it_live-in_your_browser-6f42c1?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Try it live in your browser"></a></p>
+<p align="center"><a href="https://hemashreevi.github.io/spellCheckerpro/"><img src="https://img.shields.io/badge/%E2%96%B6_Try_it_live-in_your_browser-6f42c1?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Try it live in your browser"></a></p>
 
 [Overview](#-overview) · [Features](#-features) · [pipeline (1)](#-compiler-pipeline (1)) · [Run](#-how-to-run) · [Algorithms](#-algorithms) · [Concepts](#-academic-concepts)
 
